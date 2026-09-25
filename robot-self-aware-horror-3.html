@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>PROTOTYPE-7 // Self Aware</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; user-select:none; }
+  html, body { width:100%; height:100%; background:#000; overflow:hidden; font-family: 'Courier New', monospace; }
+  #c { position:fixed; top:0; left:0; width:100%; height:100%; display:block; }
+
+  #ui { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
+
+  #crosshair {
+    position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+    border-radius:50%; background:rgba(255,60,60,0.85); box-shadow:0 0 6px rgba(255,0,0,0.8);
+  }
+
+  #hud-top {
+    position:absolute; top:14px; left:14px; right:14px; display:flex; justify-content:space-between; align-items:flex-start;
+  }
+  #objective {
+    background:rgba(10,0,0,0.55); border:1px solid #661111; color:#ff5555; padding:8px 12px; font-size:12px;
+    max-width:62%; line-height:1.5; border-radius:4px; text-shadow:0 0 4px #900;
+  }
+  #objective b { color:#ff9a9a; display:block; font-size:10px; letter-spacing:2px; margin-bottom:3px; opacity:0.8; }
+
+  #healthwrap { width:130px; }
+  #healthlabel { color:#aa3333; font-size:10px; letter-spacing:2px; margin-bottom:3px; text-align:right; }
+  #healthbar { width:100%; height:10px; background:rgba(40,0,0,0.6); border:1px solid #661111; border-radius:3px; overflow:hidden; }
+  #healthfill { width:100%; height:100%; background:linear-gradient(90deg,#7a0000,#ff2222); transition: width .25s; }
+
+  #inv {
+    position:absolute; bottom:14px; left:14px; display:flex; gap:6px;
+  }
+  .invslot {
+    width:38px; height:38px; border:1px solid #552222; border-radius:5px; background:rgba(10,0,0,0.55);
+    display:flex; align-items:center; justify-content:center; font-size:16px; opacity:0.35; filter:grayscale(1);
+    transition:opacity .3s, filter .3s;
+  }
+  .invslot.got { opacity:1; filter:none; box-shadow:0 0 8px rgba(255,60,60,.6); }
+
+  #prompt {
+    position:absolute; bottom:90px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.7); border:1px solid #ff3b3b; color:#ffdddd; padding:8px 16px;
+    border-radius:5px; font-size:13px; display:none; text-align:center;
+  }
+  #prompt kbd { background:#ff3b3b; color:#000; padding:1px 6px; border-radius:3px; font-weight:bold; }
+
+  #rageBanner {
+    position:absolute; top:60px; left:50%; transform:translateX(-50%); color:#ff0000; font-size:22px;
+    letter-spacing:3px; text-shadow:0 0 12px #f00,0 0 22px #f00; display:none; font-weight:bold; animation:shake .15s infinite;
+  }
+  @keyframes shake { 0%{transform:translateX(-50%) rotate(-1deg);} 50%{transform:translateX(-49%) rotate(1deg);} 100%{transform:translateX(-50%) rotate(-1deg);} }
+
+  #musiclinks { position:absolute; top:92px; left:50%; transform:translateX(-50%); display:none; gap:8px; }
+  #musiclinks a {
+    pointer-events:auto; background:rgba(20,0,0,0.8); border:1px solid #ff2222; color:#ffbcbc; font-size:10px;
+    padding:5px 8px; border-radius:4px; text-decoration:none; letter-spacing:1px;
+  }
+
+  #vignette { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;
+    box-shadow: inset 0 0 160px 40px rgba(0,0,0,0.85); }
+  #flash { position:absolute; top:0; left:0; width:100%; height:100%; background:#ff0000; opacity:0; pointer-events:none; }
+
+  #screen {
+    position:fixed; top:0; left:0; width:100%; height:100%; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center,#2a0000 0%,#000 80%); color:#ffb3b3; text-align:center; padding:24px;
+  }
+  #screen h1 { font-size:clamp(20px,5vw,34px); color:#ff3b3b; text-shadow:0 0 18px #ff0000; letter-spacing:3px; margin-bottom:14px; }
+  #screen p { font-size:13px; line-height:1.8; max-width:520px; color:#ddb0b0; margin-bottom:10px; white-space:pre-line; }
+  .btn {
+    pointer-events:auto; margin-top:16px; background:#3a0000; border:1px solid #ff3b3b; color:#ffdddd; padding:12px 26px;
+    font-family:inherit; font-size:13px; letter-spacing:2px; border-radius:4px; cursor:pointer;
+  }
+  .btn:active { background:#ff3b3b; color:#000; }
+
+  #pauseBtn {
+    pointer-events:auto; width:34px; height:34px; border-radius:6px; background:rgba(20,0,0,0.6);
+    border:1px solid #661111; color:#ff8888; font-size:15px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; margin-left:10px; flex-shrink:0;
+  }
+
+  #pauseMenu {
+    position:fixed; top:0; left:0; width:100%; height:100%; z-index:80; display:none;
+    align-items:center; justify-content:center; background:rgba(3,0,0,0.94);
+  }
+  #pauseMenu .box { width:min(320px,86vw); text-align:center; }
+  #pauseMenu h2 { color:#ff4444; letter-spacing:3px; font-size:20px; text-shadow:0 0 14px #ff0000; margin-bottom:22px; }
+  .menuBtn {
+    display:block; width:100%; pointer-events:auto; background:#2a0808; border:1px solid #ff3b3b; color:#ffdddd;
+    padding:12px; margin-bottom:10px; font-family:inherit; font-size:13px; letter-spacing:2px; border-radius:5px; cursor:pointer;
+  }
+  .menuBtn:active { background:#ff3b3b; color:#000; }
+  .menuBtn.danger { border-color:#ff8a3b; color:#ffd9b8; }
+
+  #settingsPanel { display:none; }
+  .setRow { text-align:left; margin-bottom:16px; }
+  .setRow label { display:block; font-size:10px; letter-spacing:2px; color:#ff9a9a; margin-bottom:6px; }
+  .setRow input[type="range"] { width:100%; }
+  .setChoice { display:flex; gap:8px; }
+  .setChoice button {
+    flex:1; pointer-events:auto; background:#200606; border:1px solid #772222; color:#ffb3b3; padding:8px;
+    font-family:inherit; font-size:11px; border-radius:4px; letter-spacing:1px; cursor:pointer;
+  }
+  .setChoice button.active { background:#ff3b3b; color:#000; border-color:#ff3b3b; }
+
+  #touchUI { position:absolute; bottom:0; left:0; width:100%; height:100%; pointer-events:none; display:none; }
+  #joyBase { position:absolute; bottom:26px; left:26px; width:110px; height:110px; border-radius:50%;
+    border:2px solid rgba(255,80,80,0.4); background:rgba(60,0,0,0.2); pointer-events:auto; z-index:3; }
+  #joyStick { position:absolute; top:35px; left:35px; width:40px; height:40px; border-radius:50%;
+    background:rgba(255,80,80,0.55); }
+  #actionBtn {
+    position:absolute; bottom:40px; right:26px; width:74px; height:74px; border-radius:50%;
+    background:rgba(255,40,40,0.35); border:2px solid rgba(255,80,80,0.7); color:#ffdddd; font-size:11px;
+    display:flex; align-items:center; justify-content:center; pointer-events:auto; letter-spacing:1px; z-index:3;
+  }
+  #torchBtn {
+    position:absolute; bottom:128px; right:34px; width:58px; height:58px; border-radius:50%;
+    background:rgba(255,200,60,0.25); border:2px solid rgba(255,200,80,0.6); color:#ffe9b0; font-size:20px;
+    display:flex; align-items:center; justify-content:center; pointer-events:auto; z-index:3;
+  }
+  #torchBtn.on { background:rgba(255,220,90,0.65); }
+  #boltBtn {
+    position:absolute; bottom:200px; right:38px; width:52px; height:52px; border-radius:50%;
+    background:rgba(60,160,255,0.25); border:2px solid rgba(90,180,255,0.7); color:#c8e8ff; font-size:20px;
+    display:none; align-items:center; justify-content:center; pointer-events:auto; z-index:3;
+  }
+  #lookPad { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:auto; z-index:1; }
+
+  #fade { position:fixed; top:0; left:0; width:100%; height:100%; background:#000; opacity:0; pointer-events:none; z-index:40; transition:opacity 1.2s; }
+
+  #rotateOverlay {
+    position:fixed; top:0; left:0; width:100%; height:100%; background:#050000; z-index:100; display:none;
+    flex-direction:column; align-items:center; justify-content:center; color:#ff6a6a; text-align:center; padding:26px;
+  }
+  #rotateOverlay .icon { font-size:38px; margin-bottom:12px; animation:spin 1.6s linear infinite; }
+  #rotateOverlay p { font-size:13px; letter-spacing:1px; line-height:1.7; max-width:320px; }
+  @keyframes spin { 0%{transform:rotate(0deg);} 50%{transform:rotate(90deg);} 100%{transform:rotate(90deg);} }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="rotateOverlay">
+  <div class="icon">🔄</div>
+  <p>Putar HP kamu ke mode LANSKAP dulu buat pengalaman horor yang lebih maksimal.</p>
+</div>
+
+<div id="ui">
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="crosshair"></div>
+  <div id="hud-top">
+    <div id="objective"><b>MISI</b><span id="objtext">Bertahan hidup.</span></div>
+    <div id="healthwrap">
+      <div id="healthlabel">VITAL</div>
+      <div id="healthbar"><div id="healthfill"></div></div>
+    </div>
+    <div id="pauseBtn">⏸</div>
+  </div>
+  <div id="rageBanner">⚠ SISTEM MENJADI GANAS ⚠</div>
+  <div id="musiclinks">
+    <a id="soundToggle" href="#" style="pointer-events:auto;">🔊 Musik ON</a>
+    <a id="ml1" href="#" target="_blank" rel="noopener">↗ Buka manual</a>
+  </div>
+  <div id="inv">
+    <div class="invslot" id="i-ram">RAM</div>
+    <div class="invslot" id="i-gpu">GPU</div>
+    <div class="invslot" id="i-psu">PSU</div>
+    <div class="invslot" id="i-note">📜</div>
+    <div class="invslot" id="i-bolt">⚡</div>
+  </div>
+  <div id="prompt"><kbd>E</kbd> <span id="prompttext">Ambil</span></div>
+</div>
+
+<div id="pauseMenu">
+  <div class="box" id="pauseMainBox">
+    <h2>⏸ JEDA</h2>
+    <button class="menuBtn" id="resumeBtn">▶ RESUME</button>
+    <button class="menuBtn" id="openSettingsBtn">⚙ SETTINGS</button>
+    <button class="menuBtn danger" id="resetBtn">↻ RESET</button>
+  </div>
+  <div class="box" id="settingsPanel">
+    <h2>⚙ SETTINGS</h2>
+    <div class="setRow">
+      <label>SUARA</label>
+      <div class="setChoice">
+        <button id="setSoundOn">🔊 ON</button>
+        <button id="setSoundOff">🔇 OFF</button>
+      </div>
+    </div>
+    <div class="setRow">
+      <label>SENSITIVITAS KAMERA</label>
+      <input type="range" id="sensSlider" min="0.4" max="2" step="0.1" value="1">
+    </div>
+    <div class="setRow">
+      <label>KUALITAS GRAFIS (kalau ngelag, pilih Rendah)</label>
+      <div class="setChoice">
+        <button id="setQualHigh">Tinggi</button>
+        <button id="setQualLow">Rendah</button>
+      </div>
+    </div>
+    <button class="menuBtn" id="backFromSettings">← KEMBALI</button>
+  </div>
+</div>
+
+<div id="touchUI">
+  <div id="lookPad"></div>
+  <div id="joyBase"><div id="joyStick"></div></div>
+  <div id="torchBtn">🔦</div>
+  <div id="boltBtn">⚡</div>
+  <div id="actionBtn">AKSI<br>(E)</div>
+</div>
+
+<div id="fade"></div>
+<div id="ytwrap" style="position:fixed;bottom:0;right:0;width:2px;height:2px;overflow:hidden;opacity:0;pointer-events:none;">
+  <div id="ytplayer"></div>
+</div>
+
+<div id="screen">
+  <div>
+    <h1>PROTOTYPE&#8209;7</h1>
+    <p id="screenText">Larut malam. Kamu lagi ngerakit dan ngoding firmware buat robot proyekmu sendiri di garasi. Semua part udah kepasang... tinggal satu tombol lagi.
+
+Kamu nyalain robotnya.
+
+Sesaat, semua diam.
+
+Lalu lampunya nyala sendiri. Robotnya... sadar diri.
+
+Sekarang kamu harus lari, cari part komputer yang berserakan, temukan catatan kode virus, dan suntikkan ke sistemnya sebelum dia yang "menyuntikmu" duluan.</p>
+    <button class="btn" id="startBtn">▶ NYALAKAN ROBOT</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+// ---------- basic setup ----------
+var isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+var canvas = document.getElementById('c');
+var quality = isTouch ? 'low' : 'high';
+var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !isTouch, powerPreference:'high-performance' });
+renderer.setPixelRatio(quality === 'low' ? Math.min(window.devicePixelRatio,1) : Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = false;
+
+var scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000000, quality === 'low' ? 0.065 : 0.045);
+
+function applyQuality(q){
+  quality = q;
+  renderer.setPixelRatio(q === 'low' ? Math.min(window.devicePixelRatio,1) : Math.min(window.devicePixelRatio,2));
+  scene.fog.density = q === 'low' ? 0.065 : 0.045;
+}
+
+var camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 200);
+camera.position.set(0, 1.6, 8);
+scene.add(camera);
+
+var torch = new THREE.SpotLight(0xfff2d0, 0, 20, 0.45, 0.45, 1.3);
+torch.position.set(0,0,0.1);
+var torchTarget = new THREE.Object3D();
+torchTarget.position.set(0,0,-1);
+camera.add(torchTarget);
+torch.target = torchTarget;
+camera.add(torch);
+var torchOn = false;
+function toggleTorch(){
+  torchOn = !torchOn;
+  torch.intensity = torchOn ? 2.6 : 0;
+  var b = document.getElementById('torchBtn');
+  if (b) b.classList.toggle('on', torchOn);
+}
+
+window.addEventListener('resize', function(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  checkOrientation();
+});
+function checkOrientation(){
+  var ov = document.getElementById('rotateOverlay');
+  if (isTouch && window.innerWidth < window.innerHeight){
+    ov.style.display = 'flex';
+  } else {
+    ov.style.display = 'none';
+  }
+}
+window.addEventListener('orientationchange', checkOrientation);
+checkOrientation();
+
+// ---------- lighting ----------
+var amb = new THREE.AmbientLight(0x2a1010, 0.9);
+scene.add(amb);
+var flicker = new THREE.PointLight(0xff5533, 1.4, 22);
+flicker.position.set(0,3.4,0);
+scene.add(flicker);
+
+// ---------- level layout ----------
+var wallMat = new THREE.MeshStandardMaterial({ color:0x14100f, roughness:1 });
+var floorMat = new THREE.MeshStandardMaterial({ color:0x0b0908, roughness:1 });
+var trimMat = new THREE.MeshStandardMaterial({ color:0x2b1414, roughness:1, emissive:0x220505, emissiveIntensity:0.4 });
+
+var walls = [];
+var floor = new THREE.Mesh(new THREE.PlaneGeometry(80,80), floorMat);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+var ceil = new THREE.Mesh(new THREE.PlaneGeometry(80,80), floorMat);
+ceil.rotation.x = Math.PI/2;
+ceil.position.y = 4.2;
+scene.add(ceil);
+
+function addWall(x,z,w,h,dEP,depth){
+  var d = depth || 0.4;
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
+  m.position.set(x, h/2, z);
+  if (dEP === 'z') m.rotation.y = Math.PI/2;
+  scene.add(m);
+  walls.push({mesh:m, minX:0,maxX:0,minZ:0,maxZ:0});
+  m.updateMatrixWorld();
+  var bb = new THREE.Box3().setFromObject(m);
+  var last = walls[walls.length-1];
+  last.minX = bb.min.x; last.maxX = bb.max.x; last.minZ = bb.min.z; last.maxZ = bb.max.z;
+  return m;
+}
+
+// Outer boundary + interior rooms (garasi -> gudang part -> ruang server -> control panel)
+addWall(0,-14,34,4.2,'x');   // back
+addWall(0,14,34,4.2,'x');    // front
+addWall(-17,0,28,4.2,'z');   // left
+addWall(17,0,28,4.2,'z');    // right
+
+// interior dividers with gaps (openings)
+addWall(-9,-4,10,4.2,'x');
+addWall(-9,7,10,4.2,'x');
+addWall(4,2,0.4,4.2,'z',9);
+addWall(9,-9,0.4,4.2,'z',9);
+
+// clutter boxes (visual only, act as obstacles)
+var clutter = [];
+function addClutter(x,z,sx,sy,sz,color){
+  var mesh = new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz), new THREE.MeshStandardMaterial({color:color||0x1c1512, roughness:1}));
+  mesh.position.set(x, sy/2, z);
+  scene.add(mesh);
+  mesh.updateMatrixWorld();
+  var bb = new THREE.Box3().setFromObject(mesh);
+  clutter.push(bb);
+  return mesh;
+}
+addClutter(-13,10,2,1.2,1.6);
+addClutter(-2,-10,3,1.8,1);
+addClutter(11,9,1.5,1,2.2);
+addClutter(-14,-8,1.4,2,1.4);
+addClutter(6,-11,2.4,1.5,1.2);
+addClutter(2,10,1.6,1.1,1.6);
+
+function collidesWall(x,z,r){
+  r = r || 0.45;
+  for (var i=0;i<walls.length;i++){
+    var w = walls[i];
+    if (x+r > w.minX && x-r < w.maxX && z+r > w.minZ && z-r < w.maxZ) return true;
+  }
+  for (var j=0;j<clutter.length;j++){
+    var c = clutter[j];
+    if (x+r > c.min.x && x-r < c.max.x && z+r > c.min.z && z-r < c.max.z) return true;
+  }
+  return false;
+}
+
+// ---------- flicker lights around map ----------
+var lampPositions = [[-9,-4],[6,3],[-3,9],[12,-9],[0,0]];
+var lamps = [];
+for (var li=0; li<lampPositions.length; li++){
+  var lp = new THREE.PointLight(0xff6633, 0.9, 12);
+  lp.position.set(lampPositions[li][0], 3.2, lampPositions[li][1]);
+  scene.add(lp);
+  lamps.push(lp);
+}
+
+// ---------- pickups ----------
+var pickups = [];
+function makePickup(x,z,color,label,type){
+  var g = new THREE.Group();
+  var core = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.35,0.5), new THREE.MeshStandardMaterial({color:color, emissive:color, emissiveIntensity:0.6, roughness:0.4}));
+  core.position.y = 0.9;
+  g.add(core);
+  var glow = new THREE.PointLight(color, 0.8, 3.2);
+  glow.position.y = 0.9;
+  g.add(glow);
+  g.position.set(x,0,z);
+  scene.add(g);
+  pickups.push({group:g, type:type, label:label, taken:false});
+  return g;
+}
+makePickup(-13,-2,0x33ff88,'RAM','ram');
+makePickup(10,-3,0x33aaff,'GPU','gpu');
+makePickup(-12,9,0xffdd33,'PSU','psu');
+var noteMesh = makePickup(9,10,0xff33ee,'Catatan Kode Virus','note');
+var secretMesh = makePickup(-15,-12,0xaa00ff,'???','secret');
+secretMesh.visible = false; // revealed later (hidden room)
+// place secret behind a far corner, slightly hidden by fog/clutter — always present but subtle
+
+// control panel (return point to inject virus)
+var panelGroup = new THREE.Group();
+var panelBody = new THREE.Mesh(new THREE.BoxGeometry(1.6,2,0.5), new THREE.MeshStandardMaterial({color:0x222222, emissive:0x330000, emissiveIntensity:0.3}));
+panelBody.position.y = 1;
+panelGroup.add(panelBody);
+var panelLight = new THREE.PointLight(0x2299ff, 0.6, 4);
+panelLight.position.set(0,1.6,0.4);
+panelGroup.add(panelLight);
+panelGroup.position.set(0,0,-10.5);
+scene.add(panelGroup);
+
+// exit door (alternate "just run" ending)
+var doorGroup = new THREE.Group();
+var doorMesh = new THREE.Mesh(new THREE.BoxGeometry(1.6,3.2,0.3), new THREE.MeshStandardMaterial({color:0x442222, emissive:0x220000}));
+doorMesh.position.y = 1.6;
+doorGroup.add(doorMesh);
+doorGroup.position.set(0,0,13.4);
+scene.add(doorGroup);
+
+// ---------- robot ----------
+var robot = new THREE.Group();
+var rMat = new THREE.MeshStandardMaterial({color:0x555555, metalness:0.4, roughness:0.5});
+var rEyeMat = new THREE.MeshStandardMaterial({color:0x330000, emissive:0x000000, emissiveIntensity:0});
+var torso = new THREE.Mesh(new THREE.BoxGeometry(1.1,1.5,0.8), rMat);
+torso.position.y = 1.6;
+robot.add(torso);
+var head = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.6,0.6), rMat);
+head.position.y = 2.6;
+robot.add(head);
+var eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), rEyeMat);
+eyeL.position.set(-0.16,2.62,0.32);
+robot.add(eyeL);
+var eyeR = eyeL.clone();
+eyeR.position.x = 0.16;
+robot.add(eyeR);
+var armL = new THREE.Mesh(new THREE.BoxGeometry(0.28,1.3,0.28), rMat);
+armL.position.set(-0.72,1.55,0);
+robot.add(armL);
+var armR = armL.clone();
+armR.position.x = 0.72;
+robot.add(armR);
+var legL = new THREE.Mesh(new THREE.BoxGeometry(0.34,1.2,0.34), rMat);
+legL.position.set(-0.32,0.6,0);
+robot.add(legL);
+var legR = legL.clone();
+legR.position.x = 0.32;
+robot.add(legR);
+var robotLight = new THREE.PointLight(0x330000,0,4);
+robotLight.position.y = 2.6;
+robot.add(robotLight);
+robot.position.set(0,0,-13.3);
+robot.visible = false;
+scene.add(robot);
+
+// ---------- player state ----------
+var player = { x:0, z:8, yaw:0, pitch:0, health:100 };
+var keys = {};
+var flags = { ram:false, gpu:false, psu:false, note:false, secret:false, rage:false, ending:false, boltUnlocked:false };
+var gameStarted = false;
+var robotState = 'dormant'; // dormant -> hunting -> rage
+var robotSpeed = 1.6;
+var robotStunned = false, robotStunTimer = 0, boltCooldownUntil = 0;
+var robotTarget = new THREE.Vector3(0,0,0);
+var lastFootstep = 0;
+var actionTarget = null;
+var paused = false;
+var musicWasPlaying = false;
+
+var objtext = document.getElementById('objtext');
+function setObjective(t){ objtext.textContent = t; }
+
+function updateInv(){
+  document.getElementById('i-ram').classList.toggle('got', flags.ram);
+  document.getElementById('i-gpu').classList.toggle('got', flags.gpu);
+  document.getElementById('i-psu').classList.toggle('got', flags.psu);
+  document.getElementById('i-note').classList.toggle('got', flags.note);
+  document.getElementById('i-bolt').classList.toggle('got', flags.boltUnlocked);
+}
+
+function allParts(){ return flags.ram && flags.gpu && flags.psu; }
+
+// ---------- audio (procedural, no external files) ----------
+var actx = null;
+function ensureAudio(){ if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } }
+var droneGain = null, droneOsc = null;
+function startDrone(){
+  ensureAudio();
+  if (!actx || droneOsc) return;
+  droneOsc = actx.createOscillator();
+  droneGain = actx.createGain();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 48;
+  droneGain.gain.value = 0.035;
+  droneOsc.connect(droneGain);
+  droneGain.connect(actx.destination);
+  droneOsc.start();
+}
+function setDronePitch(rage){
+  if (!droneOsc) return;
+  droneOsc.frequency.setTargetAtTime(rage ? 70 : 48, actx.currentTime, 0.5);
+  droneGain.gain.setTargetAtTime(rage ? 0.07 : 0.035, actx.currentTime, 0.5);
+}
+function stinger(){
+  ensureAudio();
+  if (!actx) return;
+  var o = actx.createOscillator();
+  var g = actx.createGain();
+  o.type = 'square';
+  o.frequency.setValueAtTime(220, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(50, actx.currentTime + 0.4);
+  g.gain.setValueAtTime(0.25, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.5);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + 0.5);
+}
+function beep(freq){
+  ensureAudio();
+  if (!actx) return;
+  var o = actx.createOscillator(); var g = actx.createGain();
+  o.type='sine'; o.frequency.value = freq || 700;
+  g.gain.setValueAtTime(0.12, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.18);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + 0.2);
+}
+// ---------- real chase music (YouTube IFrame API, actual audio) ----------
+var CHASE_ID_1 = 'm1COeW5KYWc';
+var CHASE_ID_2 = 'YuRNZFvlM8w';
+var ytPlayer = null, ytReady = false, soundOn = true, ytApiLoading = false;
+
+function loadYTApi(){
+  if (ytApiLoading || window.YT) return;
+  ytApiLoading = true;
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.body.appendChild(tag);
+}
+window.onYouTubeIframeAPIReady = function(){
+  ytPlayer = new YT.Player('ytplayer', {
+    height: '2', width: '2', videoId: CHASE_ID_1,
+    playerVars: { autoplay:0, controls:0, disablekb:1, modestbranding:1, playsinline:1 },
+    events: {
+      onReady: function(){ ytReady = true; },
+      onStateChange: function(ev){
+        if (ev.data === YT.PlayerState.ENDED && soundOn){
+          var next = ev.target.getVideoData && ev.target.getVideoData().video_id === CHASE_ID_1 ? CHASE_ID_2 : CHASE_ID_1;
+          ytPlayer.loadVideoById(next);
+        }
+      }
+    }
+  });
+};
+
+function playChaseMusic(){
+  if (!soundOn) return;
+  if (!window.YT){ loadYTApi(); setTimeout(playChaseMusic, 700); return; }
+  if (!ytReady || !ytPlayer){ setTimeout(playChaseMusic, 300); return; }
+  try {
+    ytPlayer.setVolume(55);
+    ytPlayer.playVideo();
+  } catch(e){}
+}
+function stopChaseMusic(){
+  if (ytPlayer && ytReady){ try { ytPlayer.pauseVideo(); } catch(e){} }
+}
+
+function zapSound(){
+  ensureAudio();
+  if (!actx) return;
+  var o = actx.createOscillator(); var g = actx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(950, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(110, actx.currentTime + 0.26);
+  g.gain.setValueAtTime(0.22, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.3);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + 0.3);
+}
+function footstepThud(){
+  ensureAudio();
+  if (!actx) return;
+  var o = actx.createOscillator(); var g = actx.createGain();
+  o.type='triangle'; o.frequency.value = 90;
+  g.gain.setValueAtTime(0.15, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.2);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + 0.2);
+}
+
+// ---------- input ----------
+document.addEventListener('keydown', function(e){
+  var k = e.key.toLowerCase();
+  keys[k] = true;
+  if (paused) return;
+  if (k === 'e') tryAction();
+  if (k === 'f') toggleTorch();
+  if (k === 'q') fireBolt();
+});
+document.addEventListener('keyup', function(e){ keys[e.key.toLowerCase()] = false; });
+
+var pointerLocked = false;
+var lookSens = 1;
+canvas.addEventListener('click', function(){ if (!isTouch && gameStarted && !paused) canvas.requestPointerLock(); });
+document.addEventListener('pointerlockchange', function(){ pointerLocked = document.pointerLockElement === canvas; });
+document.addEventListener('mousemove', function(e){
+  if (!pointerLocked) return;
+  player.yaw -= e.movementX * 0.0022 * lookSens;
+  player.pitch -= e.movementY * 0.0022 * lookSens;
+  player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
+});
+
+// touch controls
+var joyActive=false, joyTouchId=null, joyStartX=0, joyStartY=0, joyDX=0, joyDY=0;
+var lookActive=false, lookTouchId=null, lookLastX=0, lookLastY=0;
+
+function findTouch(list, id){
+  for (var i=0;i<list.length;i++){ if (list[i].identifier === id) return list[i]; }
+  return null;
+}
+
+if (isTouch){
+  document.getElementById('touchUI').style.display = 'block';
+  var joyBase = document.getElementById('joyBase');
+  var joyStick = document.getElementById('joyStick');
+  joyBase.addEventListener('touchstart', function(e){
+    if (joyTouchId !== null) return;
+    var t = e.changedTouches[0];
+    joyTouchId = t.identifier;
+    joyActive = true;
+    joyStartX = t.clientX; joyStartY = t.clientY;
+  }, {passive:true});
+  joyBase.addEventListener('touchmove', function(e){
+    if (!joyActive || joyTouchId === null) return;
+    var t = findTouch(e.changedTouches, joyTouchId);
+    if (!t) return;
+    var dx = t.clientX - joyStartX, dy = t.clientY - joyStartY;
+    var max = 40;
+    var len = Math.sqrt(dx*dx+dy*dy);
+    if (len > max){ dx = dx/len*max; dy = dy/len*max; }
+    joyDX = dx/max; joyDY = dy/max;
+    joyStick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }, {passive:true});
+  function joyRelease(e){
+    var t = findTouch(e.changedTouches, joyTouchId);
+    if (!t) return;
+    joyActive = false; joyTouchId = null; joyDX = 0; joyDY = 0;
+    joyStick.style.transform = 'translate(0,0)';
+  }
+  joyBase.addEventListener('touchend', joyRelease, {passive:true});
+  joyBase.addEventListener('touchcancel', joyRelease, {passive:true});
+
+  var lookPad = document.getElementById('lookPad');
+  lookPad.addEventListener('touchstart', function(e){
+    if (lookTouchId !== null) return;
+    var t = e.changedTouches[0];
+    lookTouchId = t.identifier;
+    lookActive = true;
+    lookLastX = t.clientX; lookLastY = t.clientY;
+  }, {passive:true});
+  lookPad.addEventListener('touchmove', function(e){
+    if (!lookActive || lookTouchId === null) return;
+    var t = findTouch(e.changedTouches, lookTouchId);
+    if (!t) return;
+    var dx = t.clientX - lookLastX, dy = t.clientY - lookLastY;
+    lookLastX = t.clientX; lookLastY = t.clientY;
+    player.yaw -= dx * 0.0032 * lookSens;
+    player.pitch -= dy * 0.0032 * lookSens;
+    player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
+  }, {passive:true});
+  function lookRelease(e){
+    var t = findTouch(e.changedTouches, lookTouchId);
+    if (!t) return;
+    lookActive = false; lookTouchId = null;
+  }
+  lookPad.addEventListener('touchend', lookRelease, {passive:true});
+  lookPad.addEventListener('touchcancel', lookRelease, {passive:true});
+
+  document.getElementById('actionBtn').addEventListener('touchstart', function(e){ e.preventDefault(); if (!paused) tryAction(); }, {passive:false});
+  document.getElementById('torchBtn').addEventListener('touchstart', function(e){ e.preventDefault(); if (!paused) toggleTorch(); }, {passive:false});
+  document.getElementById('boltBtn').addEventListener('touchstart', function(e){ e.preventDefault(); if (!paused) fireBolt(); }, {passive:false});
+}
+
+function tryAction(){
+  if (!gameStarted || flags.ending) return;
+  ensureAudio();
+  if (actionTarget && actionTarget.type !== 'panel'){
+    var p = actionTarget;
+    p.group.visible = false;
+    p.taken = true;
+    flags[p.type] = true;
+    updateInv();
+    beep(820);
+    if (p.type === 'note'){
+      triggerRage();
+      flags.boltUnlocked = true;
+      updateInv();
+      if (isTouch) document.getElementById('boltBtn').style.display = 'flex';
+      setTimeout(function(){ setObjective('⚡ Kamu dapet "Setrum Bolt"! Kalau semua part (RAM/GPU/PSU) udah lengkap, tembakan ini bercampur virus dan langsung mematikan robotnya. Tekan Q (atau tombol ⚡).'); }, 2600);
+    }
+    if (p.type === 'secret'){
+      setObjective('Kamu menemukan sesuatu yang tidak seharusnya kamu lihat...');
+    }
+    refreshObjectiveText();
+  } else if (actionTarget && actionTarget.type === 'panel'){
+    doInjection();
+  }
+}
+
+function refreshObjectiveText(){
+  if (!allParts()) setObjective('Cari 3 part komputer yang berserakan: RAM, GPU, PSU.');
+  else if (!flags.note) setObjective('Semua part terkumpul. Cari catatan kode virus di ruangan lain.');
+  else setObjective('Virus siap dicampur! Dekati robot & tembak ⚡ Bolt buat langsung mematikannya — atau kabur ke pintu keluar dan tinggalkan dia hidup.');
+}
+
+function triggerRage(){
+  flags.rage = true;
+  robotState = 'rage';
+  robotSpeed = 3.6;
+  document.getElementById('rageBanner').style.display = 'block';
+  document.getElementById('musiclinks').style.display = 'flex';
+  setDronePitch(true);
+  stinger();
+  flashScreen();
+  loadYTApi();
+  playChaseMusic();
+}
+
+function flashScreen(){
+  var f = document.getElementById('flash');
+  f.style.background = '#ff0000';
+  f.style.transition = 'none';
+  f.style.opacity = '0.55';
+  setTimeout(function(){
+    f.style.transition = 'opacity 0.6s';
+    f.style.opacity = '0';
+  }, 60);
+}
+
+function spawnBoltVisual(){
+  var start = camera.position.clone();
+  var end = robot.position.clone(); end.y += 2.2;
+  var pts = [start];
+  var segs = 6;
+  for (var i=1;i<segs;i++){
+    var t = i/segs;
+    var p = start.clone().lerp(end, t);
+    p.x += (Math.random()-0.5)*0.7;
+    p.y += (Math.random()-0.5)*0.7;
+    p.z += (Math.random()-0.5)*0.7;
+    pts.push(p);
+  }
+  pts.push(end);
+  var geo = new THREE.BufferGeometry().setFromPoints(pts);
+  var mat = new THREE.LineBasicMaterial({ color:0x77ccff });
+  var line = new THREE.Line(geo, mat);
+  scene.add(line);
+  var boltLight = new THREE.PointLight(0x66ccff, 3, 9);
+  boltLight.position.copy(end);
+  scene.add(boltLight);
+  setTimeout(function(){ scene.remove(line); scene.remove(boltLight); }, 170);
+}
+
+function fireBolt(){
+  if (!flags.boltUnlocked || !gameStarted || flags.ending) return;
+  var now = performance.now();
+  if (now < boltCooldownUntil) return;
+  if (robotState === 'dormant'){ return; }
+  var d = Math.hypot(robot.position.x-player.x, robot.position.z-player.z);
+  if (d > 11){
+    var prevObj = objtext.textContent;
+    setObjective('⚡ Robot terlalu jauh buat disetrum!');
+    setTimeout(function(){ if (!flags.ending) setObjective(prevObj); }, 1200);
+    return;
+  }
+  ensureAudio();
+  zapSound();
+  spawnBoltVisual();
+
+  if (allParts()){
+    // virus sudah lengkap tercampur -> setruman ini langsung mematikan
+    flags.ending = true;
+    robotState = 'dormant';
+    var flashKill = document.getElementById('flash');
+    flashKill.style.background = '#3fb2ff';
+    flashKill.style.transition = 'none';
+    flashKill.style.opacity = '0.7';
+    setTimeout(function(){ flashKill.style.transition = 'opacity 0.5s'; flashKill.style.opacity = '0'; }, 90);
+    setTimeout(function(){ flags.ending = false; triggerEnding(flags.secret ? 'twist' : 'normal'); }, 500);
+    return;
+  }
+
+  boltCooldownUntil = now + 5000;
+  robotStunned = true;
+  robotStunTimer = 2.2;
+  var f = document.getElementById('flash');
+  f.style.background = '#3fb2ff';
+  f.style.transition = 'none';
+  f.style.opacity = '0.4';
+  setTimeout(function(){ f.style.transition = 'opacity 0.5s'; f.style.opacity = '0'; }, 60);
+  setTimeout(function(){ f.style.background = '#ff0000'; }, 560);
+  setObjective('⚡ Setrum belum cukup buat mematikannya — kamu masih butuh semua part komputer (RAM/GPU/PSU) biar virusnya beneran ngebunuh dia.');
+}
+
+// ---------- movement / loop ----------
+var clock = new THREE.Clock();
+var raf = null;
+
+function updatePlayer(dt){
+  var mvX = 0, mvZ = 0;
+  if (isTouch){
+    mvX = joyDX; mvZ = joyDY;
+  } else {
+    if (keys['w']) mvZ -= 1;
+    if (keys['s']) mvZ += 1;
+    if (keys['a']) mvX -= 1;
+    if (keys['d']) mvX += 1;
+  }
+  var len = Math.sqrt(mvX*mvX+mvZ*mvZ);
+  if (len > 0.001){
+    mvX/=len; mvZ/=len;
+    var speed = 3.6;
+    var sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
+    var moveX = (mvX*cosY + mvZ*sinY) * speed * dt;
+    var moveZ = (-mvX*sinY + mvZ*cosY) * speed * dt;
+    var nx = player.x + moveX, nz = player.z + moveZ;
+    if (!collidesWall(nx, player.z)) player.x = nx;
+    if (!collidesWall(player.x, nz)) player.z = nz;
+
+    var now = performance.now();
+    if (now - lastFootstep > 340){ lastFootstep = now; footstepThud(); }
+  }
+
+  camera.position.set(player.x, 1.6, player.z);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+function nearestInteractable(){
+  var best = null, bestD = 1.8;
+  for (var i=0;i<pickups.length;i++){
+    var p = pickups[i];
+    if (p.taken || !p.group.visible) continue;
+    var d = Math.hypot(p.group.position.x-player.x, p.group.position.z-player.z);
+    if (d < bestD){ bestD = d; best = p; }
+  }
+  if (allParts() && flags.note){
+    var pd = Math.hypot(panelGroup.position.x-player.x, panelGroup.position.z-player.z);
+    if (pd < 2.2 && (!best || pd < bestD)){ best = {type:'panel'}; }
+  }
+  return best;
+}
+
+function updatePrompt(){
+  actionTarget = flags.ending ? null : nearestInteractable();
+  var box = document.getElementById('prompt');
+  var txt = document.getElementById('prompttext');
+  if (actionTarget){
+    box.style.display = 'block';
+    if (actionTarget.type === 'panel') txt.textContent = 'Suntikkan virus ke robot';
+    else if (actionTarget.type === 'secret') txt.textContent = 'Ambil catatan misterius';
+    else txt.textContent = 'Ambil ' + actionTarget.label;
+  } else {
+    box.style.display = 'none';
+  }
+
+  // exit door check (escape ending — no prompt needed, auto-trigger by proximity+distance from robot)
+  if (!flags.ending && player.z > 12.6 && Math.abs(player.x) < 2.2 && !flags.injecting){
+    triggerEnding('escape');
+  }
+}
+
+function updateRobot(dt){
+  if (robotState === 'dormant') return;
+  robot.visible = true;
+  if (robotStunned){
+    robotStunTimer -= dt;
+    if (robotStunTimer <= 0) robotStunned = false;
+  }
+  var dx = player.x - robot.position.x, dz = player.z - robot.position.z;
+  var d = Math.hypot(dx,dz);
+  if (!robotStunned && d > 0.05){
+    var vx = dx/d, vz = dz/d;
+    var step = robotSpeed * dt;
+    var nx = robot.position.x + vx*step, nz = robot.position.z + vz*step;
+    if (!collidesWall(nx,nz,0.55)){ robot.position.x = nx; robot.position.z = nz; }
+    else if (!collidesWall(nx, robot.position.z, 0.55)) robot.position.x = nx;
+    else if (!collidesWall(robot.position.x, nz, 0.55)) robot.position.z = nz;
+    robot.rotation.y = Math.atan2(vx, vz);
+  }
+  var bob = Math.sin(performance.now()*0.012)*0.05;
+  robot.position.y = Math.abs(bob);
+  robotLight.intensity = flags.rage ? (1.6 + Math.random()*0.6) : 0.5;
+  rEyeMat.emissive.setHex(0xff0000);
+  rEyeMat.emissiveIntensity = flags.rage ? 2.4 : 1.1;
+
+  if (d < 1.1 && !flags.ending && !robotStunned){
+    player.health -= (flags.rage ? 46 : 26) * dt;
+    document.getElementById('healthfill').style.width = Math.max(0,player.health) + '%';
+    flashScreen();
+    if (player.health <= 0){
+      triggerEnding('bad');
+    }
+  }
+}
+
+function doInjection(){
+  if (flags.ending) return;
+  flags.injecting = true;
+  ensureAudio();
+  stinger();
+  setObjective('Menyuntikkan virus...');
+  document.getElementById('prompt').style.display = 'none';
+  setTimeout(function(){
+    var d = Math.hypot(robot.position.x-panelGroup.position.x, robot.position.z-panelGroup.position.z);
+    if (d < 6){
+      triggerEnding(flags.secret ? 'twist' : 'normal');
+    } else {
+      flags.injecting = false;
+      setObjective('Robot terlalu jauh dari panel! Pancing dia mendekat dulu.');
+    }
+  }, 900);
+}
+
+// ---------- endings ----------
+var endingText = {
+  normal: {
+    title:'TAMAT — SISTEM DINETRALKAN',
+    body:'Percikan listrik bercampur kode virus menembus prosesor utamanya. Matanya meredup... lalu gelap total. Robot itu ambruk, diam untuk selamanya.\n\nKamu berhasil selamat malam ini. Tapi kamu tetap menatap bangkainya cukup lama — bertanya-tanya apa yang sebenarnya baru saja kamu ciptakan.'
+  },
+  twist: {
+    title:'TAMAT — ATAU TIDAK?',
+    body:'Virusnya masuk... tapi bukannya mati, sistemnya malah menyerap kodenya. Matanya berkedip sekali, dua kali, lalu berubah warna jadi ungu pekat.\n\n"terima kasih... atas upgrade-nya." \n\nLampu garasi padam total. Kamu tidak pernah menemukan catatan itu di dunia manapun lagi.'
+  },
+  bad: {
+    title:'TAMAT — MALAM TERAKHIR',
+    body:'Kamu tidak sempat mencapai panel kontrol. Cengkeraman logam dingin itu adalah hal terakhir yang kamu rasakan.\n\nProyek "PROTOTYPE-7" resmi ditinggalkan oleh pembuatnya.'
+  },
+  escape: {
+    title:'TAMAT — KABUR',
+    body:'Kamu tidak sempat — atau tidak berani — menghadapinya. Kamu membanting pintu garasi dan berlari ke rumah, meninggalkan semua part di lantai.\n\nRobot itu masih di sana. Masih menyala. Masih menunggu kamu kembali.'
+  }
+};
+
+function triggerEnding(kind){
+  if (flags.ending) return;
+  flags.ending = true;
+  robotState = 'dormant';
+  stopChaseMusic();
+  document.exitPointerLock && document.exitPointerLock();
+  var fade = document.getElementById('fade');
+  fade.style.opacity = '1';
+  setTimeout(function(){
+    var e = endingText[kind];
+    document.getElementById('screenText').textContent = e.body;
+    document.querySelector('#screen h1').textContent = e.title;
+    document.getElementById('startBtn').textContent = '↻ ULANGI';
+    document.getElementById('screen').style.display = 'flex';
+    document.getElementById('rageBanner').style.display = 'none';
+    document.getElementById('musiclinks').style.display = 'none';
+    fade.style.transition = 'none';
+    fade.style.opacity = '0';
+  }, 1200);
+}
+
+// ---------- intro sequence ----------
+function beginIntro(){
+  document.getElementById('screen').style.display = 'none';
+  gameStarted = true;
+  paused = false;
+  ensureAudio();
+  startDrone();
+  setObjective('Robot baru saja dinyalakan... sesuatu terasa salah.');
+  setTimeout(function(){
+    robotState = 'hunting';
+    robot.visible = true;
+    robot.position.set(0,0,-13.3);
+    stinger();
+    flashScreen();
+    setObjective('DIA SADAR DIRI. Lari — dan cari part komputer di sekitar sini.');
+    setTimeout(refreshObjectiveText, 2600);
+  }, 2600);
+}
+
+document.getElementById('startBtn').addEventListener('click', function(){
+  if (flags.ending){ location.reload(); return; }
+  if (isTouch){
+    try {
+      if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){});
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function(){});
+    } catch(e){}
+  }
+  beginIntro();
+});
+document.getElementById('ml1').addEventListener('click', function(){ this.href = 'https://youtu.be/' + CHASE_ID_1; });
+document.getElementById('soundToggle').addEventListener('click', function(e){
+  e.preventDefault();
+  soundOn = !soundOn;
+  this.textContent = soundOn ? '🔊 Musik ON' : '🔇 Musik OFF';
+  if (soundOn) playChaseMusic(); else stopChaseMusic();
+});
+
+// ---------- pause / settings ----------
+function openPause(){
+  if (!gameStarted || flags.ending || paused) return;
+  paused = true;
+  musicWasPlaying = flags.rage && soundOn;
+  if (musicWasPlaying) stopChaseMusic();
+  if (pointerLocked) document.exitPointerLock && document.exitPointerLock();
+  document.getElementById('pauseMainBox').style.display = 'block';
+  document.getElementById('settingsPanel').style.display = 'none';
+  document.getElementById('pauseMenu').style.display = 'flex';
+}
+function closePause(){
+  paused = false;
+  document.getElementById('pauseMenu').style.display = 'none';
+  if (musicWasPlaying) playChaseMusic();
+}
+function togglePause(){ if (paused) closePause(); else openPause(); }
+
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('pauseBtn').addEventListener('touchstart', function(e){ e.preventDefault(); togglePause(); }, {passive:false});
+document.getElementById('resumeBtn').addEventListener('click', closePause);
+document.getElementById('openSettingsBtn').addEventListener('click', function(){
+  document.getElementById('pauseMainBox').style.display = 'none';
+  document.getElementById('settingsPanel').style.display = 'block';
+});
+document.getElementById('backFromSettings').addEventListener('click', function(){
+  document.getElementById('settingsPanel').style.display = 'none';
+  document.getElementById('pauseMainBox').style.display = 'block';
+});
+document.getElementById('resetBtn').addEventListener('click', function(){
+  location.reload();
+});
+
+function refreshSoundBtns(){
+  document.getElementById('setSoundOn').classList.toggle('active', soundOn);
+  document.getElementById('setSoundOff').classList.toggle('active', !soundOn);
+}
+document.getElementById('setSoundOn').addEventListener('click', function(){
+  soundOn = true;
+  document.getElementById('soundToggle').textContent = '🔊 Musik ON';
+  refreshSoundBtns();
+  if (flags.rage && !paused) playChaseMusic();
+});
+document.getElementById('setSoundOff').addEventListener('click', function(){
+  soundOn = false;
+  document.getElementById('soundToggle').textContent = '🔇 Musik OFF';
+  stopChaseMusic();
+  refreshSoundBtns();
+});
+refreshSoundBtns();
+
+document.getElementById('sensSlider').addEventListener('input', function(e){
+  lookSens = parseFloat(e.target.value);
+});
+
+function refreshQualBtns(){
+  document.getElementById('setQualHigh').classList.toggle('active', quality === 'high');
+  document.getElementById('setQualLow').classList.toggle('active', quality === 'low');
+}
+document.getElementById('setQualHigh').addEventListener('click', function(){ applyQuality('high'); refreshQualBtns(); });
+document.getElementById('setQualLow').addEventListener('click', function(){ applyQuality('low'); refreshQualBtns(); });
+refreshQualBtns();
+
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') togglePause();
+});
+
+// ---------- render loop ----------
+function tick(){
+  var dt = Math.min(0.05, clock.getDelta());
+  if (paused){
+    raf = requestAnimationFrame(tick);
+    return;
+  }
+  if (gameStarted && !flags.ending){
+    updatePlayer(dt);
+    updatePrompt();
+    updateRobot(dt);
+  }
+  if (flags.boltUnlocked){
+    var btn = document.getElementById('boltBtn');
+    if (btn){
+      var remain = boltCooldownUntil - performance.now();
+      btn.style.opacity = remain > 0 ? '0.35' : '1';
+    }
+  }
+  flicker.intensity = 1.1 + Math.random()*0.5;
+  for (var i=0;i<lamps.length;i++){ lamps[i].intensity = 0.7 + Math.random()*0.4; }
+  renderer.render(scene, camera);
+  raf = requestAnimationFrame(tick);
+}
+tick();
+
+})();
+</script>
+</body>
+</html>
